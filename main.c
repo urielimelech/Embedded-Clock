@@ -143,9 +143,11 @@ struct changeFlag{
 };
 
 static struct changeFlag changeFlags = {2, 2, 2};
+static struct changeFlag AlarmFlag = {0, 0, 0};
 
 BOOL CheckButtonPressed(void);
 void DateUpdate();
+void Alarm();
 
 //	========================	VECTOR REMAPPING	========================
 #if defined(__18CXX)
@@ -227,6 +229,7 @@ void DateUpdate();
   #pragma interrupt YourHighPriorityISRCode
   void YourHighPriorityISRCode()
   {
+    BYTE temp;
     clock++;
     changeFlags.sec = 1;
     if (clock == 10){
@@ -284,17 +287,34 @@ void DateUpdate();
     }
     DateUpdate();
     changeClockFlag = 1;
+
+    if (AlarmFlag.sec >= 2){
+      if (AlarmFlag.sec > 21){
+        AlarmFlag.sec = 0;
+      }
+      else
+        AlarmFlag.sec++;
+    }
+    if (AlarmFlag.sec == 1){
+      temp = (digits[0] - 0x30) * 10 + digits[1] - 0x30;
+      if (AlarmFlag.hour == temp){
+        temp = (digits[3] - 0x30) * 10 + digits[4] - 0x30;
+        if (AlarmFlag.min == temp){
+          AlarmFlag.sec = 2;
+        }
+      }
+    }
     TMR0H = 0x48;
     TMR0L = 0xe5;
     INTCONbits.TMR0IF = 0;
-    
+  }
 
     //Check which interrupt flag caused the interrupt.
     //Service the interrupt
     //Clear the interrupt flag
     //Etc.
   
-  } //This return will be a "retfie fast", since this is in a #pragma interrupt section 
+  //This return will be a "retfie fast", since this is in a #pragma interrupt section 
   #pragma interruptlow YourLowPriorityISRCode
   void YourLowPriorityISRCode()
   {
@@ -426,22 +446,13 @@ char CheckButtonPressed()
   static char buttonPressed = FALSE;
   static unsigned long buttonPressCounter = 0;
   unsigned char temp;
-  unsigned long touch1, touch2;
+  unsigned long touch1;
 
   touch1 = 700000;
 
   while(PORTBbits.RB0 == 0)
   {
     buttonPressCounter++;
-    /*if(buttonPressCounter > 30000)
-    {
-      buttonPressCounter = 0;
-      buttonPressed = 1;
-    }
-    if (buttonPressCounter > 200){
-      buttonPressCounter = 0;
-      buttonPressed = 2;
-    }*/
   }
   if (buttonPressCounter > 200){
     if (buttonPressCounter < touch1){
@@ -451,26 +462,24 @@ char CheckButtonPressed()
     else if (buttonPressCounter > touch1){
       buttonPressCounter = 0;
       buttonPressed = 1;
+      if (AlarmFlag.sec >= 2){
+        AlarmFlag.sec = 0;
+      }
     }
   }
-  // else
-  // {
-    if(buttonPressed != 0)
+  if(buttonPressed != 0)
+  {
+    if(buttonPressCounter == 0)
     {
-      if(buttonPressCounter == 0)
-      {
-        temp = buttonPressed;
-        buttonPressed = 0;
-        return temp;
-      }
-      else
-      {
-        buttonPressCounter--;
-      }
+      temp = buttonPressed;
+      buttonPressed = 0;
+      return temp;
     }
-    // else
-    //   buttonPressCounter = 0;
-  // }
+    else
+    {
+      buttonPressCounter--;
+    }
+  }
   return 0;
 }
 
@@ -503,22 +512,6 @@ int twosComp(int value){
 	return -value;
 }
 
-//  ========================	Screens code		========================
-
-/*void DrawScreen(int type)
-{
-	int i;
-	char phrase[20];
-	FillDisplay(0x00);
-	//Type 0 - Main menu
-	if(type == 0)
-	{	
-		phrase="Hello\0";
-		oledPutString(phrase,1,10);
-		return;	
-	}
-}*/
-
 //	========================	Application Code	========================
 
 
@@ -538,10 +531,10 @@ int twosComp(int value){
  * Note:            None
  *******************************************************************/
 
-void checkedLine(char* unCheck, char* Check){
-  unCheck[0] = ' ';
-  Check[0] = '>';
-}
+// void checkedLine(char* unCheck, char* Check){
+//   unCheck[0] = ' ';
+//   Check[0] = '>';
+// }
 
 BOOL flag = TRUE, BP = TRUE;
 int pressed(int selection){
@@ -641,6 +634,13 @@ void oledAnalogClock(char* time){
   }
 }
 
+void Alarm(void){
+  FillDisplay(0xFF);
+  DelayMs(50);
+  FillDisplay(0x00);
+  DelayMs(50);
+}
+
 void resetAnalog(void){
   prevXSec = 0;
   prevYSec = 0;
@@ -689,33 +689,6 @@ void setTempTime(BYTE H, BYTE M, BYTE S, char* tempTime){
   tempTime[7] = (S % 10) + 0x30;
 }
 
-// static char instruction_Touch[14] = {'U', 's', 'e', ' ', 'T', 'o', 'u', 'c', 'h', ' ', 'P', 'a', 'd', '\0'};
-// static char instruction_Tilt[9]= {'U', 's', 'e', ' ', 'T', 'i', 'l', 't', '\0'};
-// static char instruction_Pot[8]= {'U', 's', 'e', ' ', 'P', 'o', 't', '\0'};
-// static char subHead[9] = {'S', 'u', 'b', ' ', 'M', 'e', 'n', 'u', '\0'};
-// static char instruction_left_right[17] = {'U', 's', 'e', ' ', 'L', 'e', 'f', 't', ' ', '&', ' ', 'R', 'i', 'g', 'h', 't', '\0'};
-// static char st1[7] = {'>', 'F', 'i', 'r', 's', 't', '\0'};
-// static char nd2[8] = {' ', 'S', 'e', 'c', 'o', 'n', 'd', '\0'};
-// static char rd3[7] = {' ', 'T', 'h', 'i', 'r', 'd', '\0'};
-// static char th4[6] = {' ', 'F', 'o', 'u', 'r', '\0'};
-// static char long_ex[19] = {' ', 'E', 'x', 'e', 'c', 'u', 't', 'e', ' ', 'A', 'c', 't', 'i', 'o', 'n', ' ', '0', '1', '\0'};
-// static char ex[5] = {'E', 'x', 'e', 'c', '\0'};
-// static char exNum[2] = {'1','\0'};
-// static char instruction_shake[18] = {'S','h','a','k','e',' ','M','e', ' ', 'T', 'o' ,' ','R','e','s','e','t','\0'};
-// static char shake[10] = {'S','h','a','k','e',' ','N','o','w','\0'};
-// static char shakeHard[13] = {'S','h','a','k','e',' ','H','a','r','d','e','r', '\0'};
-// static char sub_sub_menu[13] = {'S','u','b',' ','S', 'u', 'b', ' ', 'M', 'e', 'n', 'u', '\0'};
-// static char instruction_sub_sub[22] = {'J','u','s','t',' ','P','r','e','s','s',' ','T','h','e',' ','B','u','t','t','o','n','\0'};
-
-// void mainMenu(void){                      //touch pad menu
-//   oledPutString(MainHead, 0, 4*6);
-//   oledPutString(instruction_Touch, 1, 3*6);
-//   oledPutString(st1, 3, 0*6);
-//   oledPutString(nd2, 3, 10*6);
-//   oledPutString(rd3, 5, 0*6);
-//   oledPutString(th4, 5, 10*6);
-// }
-
 void selection_Menu(void){                    //pot menu
   char option1[13] = {'D', 'i', 's', 'p', 'l', 'a', 'y', ' ', 'M', 'o', 'd', 'e', '\0'};
   char option2[19] = {'1', '2', 'H', ' ', '/', ' ', '2', '4', 'H', ' ', 'I', 'n', 't', 'e', 'r', 'v', 'a', 'l', '\0'};
@@ -743,85 +716,70 @@ void setDate_Menu(void){
 }
 
 void analog_Menu (void){
+  BYTE i;
+  float x, y, temp;
+  BYTE x1, x2, y1, y2;
+
+  temp = PI / 6;
   oledPutString(Date, 0, 0*6);
-  drawLine (67, 0, 67, 5, thin);
-  drawLine (67, 59, 67, 63, thin);
-  drawLine (35, 32, 40, 32, thin);
-  drawLine (94, 32, 99, 32, thin);
+
+  for (i = 0; i < 12; i++){
+    x = sin(i * temp);
+    y = cos(i * temp);
+    x1 = 67 + (28 * x);
+    x2 = 67 + (32 * x);
+    y1 = 32 - (28 * y);
+    y2 = 32 - (32 * y);
+    drawLine (x1, y1, x2, y2, thin);
+  }
 }
-  
-// void left_right_menu(void){                //sub tilt menu
-//   oledPutString(subHead, 0, 7*6); 
-//   oledPutString(instruction_left_right, 1, 2*6);
-//   oledPutString(ex, 3, 0*6);
-//   oledPutString(ex, 3, 5*6);
-//   oledPutString(ex, 3, 10*6);
-//   oledPutString(ex, 3, 15*6);
-//   oledPutString(exNum, 5, 2*6);
-//   exNum[0]++;
-//   oledPutString(exNum, 5, 7*6);
-//   exNum[0]++;
-//   oledPutString(exNum, 5, 12*6);
-//   exNum[0]++;
-//   oledPutString(exNum, 5, 17*6);
-//   exNum[0] = '1';
-// }
 
-// void shake_menu(void){
-//   oledPutString(subHead, 0, 7*6);
-//   oledPutString(instruction_shake, 1, 2*6);
-//   oledPutString(shake, 4, 6*6);
-// }
-
-// void subsub_menu(void){
-//   oledPutString(sub_sub_menu, 0, 4*6);
-//   oledPutString(instruction_sub_sub,1,0*6);
-// }
+void num2str(char* str, BYTE num){  
+  str[0] = (num / 10) + 0x30;
+  str[1] = (num % 10) + 0x30;
+  str[2] = '\0';
+}
 
 void menuPrinter(int menuNum){
   FillDisplay(0x00);
   switch (menuNum){
     case 0:
+      if (AlarmFlag.sec == 1){
+        oledWriteAlarmIcon(0xB0, 16*6);
+      }
       mainMenu();
       break;
     case 1:
+      if (AlarmFlag.sec == 1){
+        oledWriteAlarmIcon(0xB2, 19*6);
+      }
       selection_Menu();
       break;
     case 2:
+      if (AlarmFlag.sec == 1){
+        oledWriteAlarmIcon(0xB0, 16*6);
+      }
       analog_Menu();
       break;
     case 6:
       setDate_Menu();
       break;
   }
-    // case 2:
-  // pot_Menu();
-      // break;
-    // case 3:
-    //   left_right_menu();
-    //   break;
-    // case 4:
-    //   shake_menu();
-    //   break;
-    // case 5:
-    //   subsub_menu();
-    //   break;
-  // }
 }
 
 
 void main(void)
 {
-  int selection_flag = 0;
+  BYTE selection_flag = 0;
   BYTE H, M, S;
+  BYTE i;
   char time[9] = {'0', '0', ':', '0', '0', ':', '0', '0', '\0'};
-  // int resultX, resultY, resultZ;
-	// char x[5], y[5], z[5];
-  // int selectMenu = 0, selection = 0, line = 0,
-  int potLastState = 0, left_right_LastState = 0, tiltCounter = 0, tiltLastState = 0;
-  int functionallity = 0;
+  char str[3];
+  unsigned int resultY;
+  int potLastState = 0;
+  BYTE functionallity = 0;
 	int potValue, L, R, U, D;
-  char clickFunc, prevSelection, dateFlag = 0, selectMenu = 0, selection = 0;
+  BYTE clickFunc, prevSelection, dateFlag = 0, selectMenu = 0, selection = 0;
 
  	InitializeADCON0();
 	InitializeSystem();
@@ -847,12 +805,12 @@ void main(void)
   DayValue = (Date[3] - 0x30) * 10 + Date[4] - 0x30;
 /*******************\
  */ 
-  while(1){
-    // pot_Menu();
-  /*
-  
-\*******************/
- 	// while(1){							//Main is Usualy an Endless Loop
+  while(1){                                    //Main is Usualy an Endless Loop
+    if (AlarmFlag.sec >= 2){
+      Alarm();
+      resetAnalog();
+      menuPrinter(selectMenu);
+    }
     clickFunc = CheckButtonPressed();          // 1 - long press, 2 - short press
     selectMenu = pressed(selection);
     ADCON0 = 0x13;
@@ -949,6 +907,13 @@ void main(void)
         }
         selection_flag = selection;
         break;
+      case 7:
+        if (selection_flag != 7){               // set alarm menu
+          menuPrinter(selectMenu);              // selection = 7
+          functionallity = 2;                   // functionallity = 2
+        }
+        selection_flag = selection;
+        break;
     }
     switch (functionallity){
       case 1:
@@ -1001,12 +966,104 @@ void main(void)
             break;
         }
         break;
+      case 2:
+        num2str(str, AlarmFlag.hour);
+        oledPutBigChar(str, 3, 4*6);
+        num2str(str, AlarmFlag.min);
+        oledPutBigChar(str, 3, 10*6);
+        resultY = readAcc(0x05);
+        if (resultY > 200 && resultY < 500){
+          selection = 0;
+          AlarmFlag.min = 0;
+          AlarmFlag.hour = 0;
+          AlarmFlag.sec = 0;
+        }
+        ADCON0 = 0x11;
+        L = mTouchReadButton(3);							//read if left is being touched
+        R = mTouchReadButton(0);							//read if right is being touched
+        U = mTouchReadButton(1);              //read if up is being touched
+        D = mTouchReadButton(2);              //read if down is being touched
+        for (i = 4; i < 9; i++){
+          oledWriteChar1x('=', 0xB7, i*6);  
+          oledWriteChar1x(' ', 0xB7, (i+6)*6);
+        }
+        while (U < 600) {
+          AlarmFlag.hour++;
+          if (AlarmFlag.hour > 23){
+            AlarmFlag.hour = 0;
+          }
+          num2str(str, AlarmFlag.hour);
+          oledPutBigChar(str, 3, 4*6);
+          DelayMs(100);
+          U = mTouchReadButton(1);
+        }
+        while (D < 600){
+          AlarmFlag.hour--;
+          if (AlarmFlag.hour > 23){
+            AlarmFlag.hour = 23;
+          }
+          num2str(str, AlarmFlag.hour);
+          oledPutBigChar(str, 3, 4*6);        
+          DelayMs(100);
+          D = mTouchReadButton(2);
+        }
+        if (L < 600){
+          selection = prevSelection;
+          break;
+        }
+        if (R < 600){
+          DelayMs(100);
+          for (i = 4; i < 9; i++){
+            oledWriteChar1x(' ', 0xB7, i*6);  
+            oledWriteChar1x('=', 0xB7, (i+6)*6);
+          }
+          while(1){
+            L = mTouchReadButton(3);							//read if left is being touched
+            R = mTouchReadButton(0);							//read if right is being touched
+            U = mTouchReadButton(1);              //read if up is being touched
+            D = mTouchReadButton(2);              //read if down is being touched
+            if (L < 600){
+              for (i = 10; i < 15; i++){
+                oledWriteChar1x(' ', 0xB7, i*6);
+              }
+              DelayMs(100);
+              L = mTouchReadButton(3);
+              break;
+            }
+            while (U < 600){
+              AlarmFlag.min++;
+              if (AlarmFlag.min > 59){
+                AlarmFlag.min = 0;
+              }
+              num2str(str, AlarmFlag.min);
+              oledPutBigChar(str, 3, 10*6);
+              DelayMs(100);
+              U = mTouchReadButton(1);
+            }
+            while (D < 600){
+              AlarmFlag.min--;
+              if (AlarmFlag.min > 59){
+                AlarmFlag.min = 59;
+              }
+              num2str(str, AlarmFlag.min);
+              oledPutBigChar(str, 3, 10*6);
+              DelayMs(100);
+              D = mTouchReadButton(2);
+            }
+            if (R < 600){
+              DelayMs(100);
+              AlarmFlag.sec = 1;
+              selection = 0;
+              break;
+            }
+          }
+        }
+        break;
       case 5:
         H = 0;
         M = 0;
         S = 0;
         while (selection != 0){
-          BYTE i;
           L = mTouchReadButton(3);							//read if left is being touched
           R = mTouchReadButton(0);							//read if right is being touched
           U = mTouchReadButton(1);              //read if up is being touched
@@ -1140,7 +1197,6 @@ void main(void)
                 break;
               }
             }
-            // break;
           }
         }
         selection = 0;
@@ -1156,16 +1212,10 @@ void main(void)
           R = mTouchReadButton(0);							//read if right is being touched
           U = mTouchReadButton(1);              //read if up is being touched
           D = mTouchReadButton(2);              //read if down is being touched
-          oledWriteChar1x(' ', 0xB7, 12*6);
-          oledWriteChar1x(' ', 0xB7, 13*6);
-          oledWriteChar1x(' ', 0xB7, 14*6);
-          oledWriteChar1x(' ', 0xB7, 15*6);
-          oledWriteChar1x(' ', 0xB7, 16*6);
-          oledWriteChar1x('=', 0xB7, 4*6);
-          oledWriteChar1x('=', 0xB7, 5*6);
-          oledWriteChar1x('=', 0xB7, 6*6);
-          oledWriteChar1x('=', 0xB7, 7*6);
-          oledWriteChar1x('=', 0xB7, 8*6);
+          for (i = 4; i < 9; i++){
+            oledWriteChar1x('=', 0xB7, i*6);
+            oledWriteChar1x(' ', 0xB7, (i+8)*6);
+          }
           while (U < 600) {
             DayValue++;
             if (DayValue > 30){
@@ -1192,11 +1242,6 @@ void main(void)
           }
           if (R < 600){
             DelayMs(100);
-            oledWriteChar1x(' ', 0xB7, 4*6);
-            oledWriteChar1x(' ', 0xB7, 5*6);
-            oledWriteChar1x(' ', 0xB7, 6*6);
-            oledWriteChar1x(' ', 0xB7, 7*6);
-            oledWriteChar1x(' ', 0xB7, 8*6);
             while (1){
               if (changeClockFlag){
                 oledPutString(digits, 0, 13*6);
@@ -1206,11 +1251,10 @@ void main(void)
               R = mTouchReadButton(0);							//read if right is being touched
               U = mTouchReadButton(1);              //read if up is being touched
               D = mTouchReadButton(2);              //read if down is being touched
-              oledWriteChar1x('=', 0xB7, 12*6);
-              oledWriteChar1x('=', 0xB7, 13*6);
-              oledWriteChar1x('=', 0xB7, 14*6);
-              oledWriteChar1x('=', 0xB7, 15*6);
-              oledWriteChar1x('=', 0xB7, 16*6);
+              for (i = 4; i < 9; i++){
+                oledWriteChar1x('=', 0xB7, (i+8)*6);
+                oledWriteChar1x(' ', 0xB7, i*6);
+              }
               while (U < 600){
                 MonthValue++;
                 if (MonthValue > 12){
@@ -1246,434 +1290,6 @@ void main(void)
       break;
     }
   }
-      // case 1:                                   //tilt menu
-      //   if (selection_flag != 1){
-      //     menuPrinter(selectMenu);
-      //     functionallity = 1;
-      //   }
-      //   selection_flag = 1;
-      //   if (changeClockFlag){
-      //     oledPutString(digits, 0, 11*6);
-      //     changeClockFlag = 0;
-      //   }
-      //   if (CheckButtonPressed)
-      //   break;
-  //     case 2:                                   //pot menu
-  //       if (selection_flag != 2){
-  //         menuPrinter(selectMenu);
-  //         functionallity = 2;
-  //       }
-  //       selection_flag = 2;
-  //       break;
-  //     case 3:                                   //left right menu
-  //       if (selection_flag != 3){
-  //         menuPrinter(selectMenu);
-  //         functionallity = 3;
-  //       }
-  //       selection_flag = 3;
-  //       break;
-  //     case 4:
-  //       if (selection_flag != 4){                 //forth_Menu();
-  //         menuPrinter(selectMenu);
-  //         functionallity = 4;
-  //       }
-  //       selection_flag = 4;
-  //       break;
-  //     case 5:
-  //       if (selection_flag != 5){                 // press to reset
-  //         menuPrinter(selectMenu);
-  //         functionallity = 5;
-  //       }
-  //       selection_flag = 5;
-  //       break;
-  //   }
-  //   if (functionallity == 0){                   // touchpad functionallity
-  //       switch (selection){                     // navigate in the menu
-  //         case 0:
-  //           if (L < 600){
-  //             selection = 1;  
-  //             break;
-  //           }    
-  //           else if (R < 600){
-  //             checkedLine(st1, nd2);
-  //             menuPrinter(selectMenu);
-  //             selection = 2;
-  //             break;
-  //           }
-  //           else if (D < 600){
-  //             checkedLine(st1, rd3);
-  //             menuPrinter(selectMenu);
-  //             selection = 3;
-  //             break;
-  //           }
-  //           else if (U < 600){
-  //             selection = 1;
-  //             break;
-  //           }
-  //         case 1:
-  //           if (L < 600){
-  //             selection = 1;
-  //             break;
-  //           }
-  //           else if (R < 600){
-  //             checkedLine(st1, nd2);
-  //             menuPrinter(selectMenu);
-  //             selection = 2;
-  //             break;
-  //           }
-  //           else if (D < 600){
-  //             checkedLine(st1, rd3);
-  //             menuPrinter(selectMenu);
-  //             selection = 3;
-  //             break;
-  //           }
-  //           else if (U < 600){
-  //             selection = 1;
-  //             break;
-  //           }
-  //         case 2:
-  //             if (L < 600){
-  //               checkedLine(nd2, st1);
-  //               menuPrinter(selectMenu);
-  //               selection = 1;
-  //               break;
-  //             }
-  //             else if (R < 600){
-  //               selection = 2;
-  //               break;
-  //             }
-  //             else if (U < 600){
-  //               selection = 2;
-  //               break;
-  //             }
-  //             else if (D < 600){
-  //               checkedLine(nd2, th4);
-  //               menuPrinter(selectMenu);
-  //               selection = 4;
-  //               break;
-  //             }
-  //         case 3:
-  //             if (L < 600){
-  //               selection = 3;
-  //               break;
-  //             }
-  //             else if (R < 600){
-  //               checkedLine(rd3, th4);
-  //               menuPrinter(selectMenu);
-  //               selection = 4;
-  //               break;
-  //             }
-  //             else if (U < 600){
-  //               checkedLine(rd3, st1);
-  //               menuPrinter(selectMenu);
-  //               selection = 1;
-  //               break;
-  //             }
-  //             else if (D < 600){
-  //               selection = 3;
-  //               break;
-  //             }
-  //         case 4:
-  //             if (L < 600){
-  //               checkedLine(th4, rd3);
-  //               menuPrinter(selectMenu);
-  //               selection = 3;
-  //               break;
-  //             }
-  //             else if (R < 600){
-  //               selection = 4;
-  //               break;
-  //             }
-  //             else if (U < 600){
-  //               checkedLine(th4, nd2);
-  //               menuPrinter(selectMenu);
-  //               selection = 2;
-  //               break;
-  //             }
-  //             else if (D < 600){
-  //               selection = 4;
-  //               break;
-  //             }
-  //       }
-  //   }
-  //   else if (functionallity == 1){              // tilt functionallity
-  //     resultX = readAcc(0x03);
-  //     if (resultX > 10){
-  //       while (resultX > 2)
-  //         resultX = readAcc(0x03);
-  //       tiltCounter++;
-  //     }
-  //     else if (resultX < -10){
-  //       while (resultX < -2)
-  //         resultX = readAcc(0x03);
-  //       tiltCounter--;
-  //     }
-  //     if (tiltCounter < 0)
-  //       tiltCounter = 0;
-  //     if (tiltCounter > 4)
-  //       tiltCounter = 4;
-  //     if (tiltLastState != tiltCounter){
-  //       switch(tiltCounter){
-  //         case 0:
-  //           st1[0] = '>';
-  //           nd2[0] = ' ';
-  //           rd3[0] = ' ';
-  //           th4[0] = ' ';
-  //           menuPrinter(selectMenu);
-  //           selection = 0;
-  //           break;
-  //         case 1:
-  //           st1[0] = ' ';
-  //           nd2[0] = '>';
-  //           rd3[0] = ' ';
-  //           th4[0] = ' ';
-  //           menuPrinter(selectMenu);
-  //           selection = 1;
-  //           break;
-  //         case 2:
-  //           st1[0] = ' ';
-  //           nd2[0] = ' ';
-  //           rd3[0] = '>';
-  //           th4[0] = ' ';
-  //           menuPrinter(selectMenu);
-  //           selection = 2;
-  //           break;
-  //         case 3:
-  //           st1[0] = ' ';
-  //           nd2[0] = ' ';
-  //           rd3[0] = ' ';
-  //           th4[0] = '>';
-  //           menuPrinter(selectMenu);
-  //           selection = 3;
-  //           break;
-  //       }
-  //     }
-  //     tiltLastState = tiltCounter;
-  //   }
-  //   else if (functionallity == 2){              // pot functionallity
-  //     potValue = readTouch(0x13);
-  //     selection = potValue/60;
-  //     if (potLastState != selection){
-  //       if (selection < 6){
-  //         long_ex[16] = '0';
-  //         long_ex[17] = '1';
-  //         menuPrinter(selectMenu);
-  //       }
-  //       else if ((6 <= selection) && (selection < 12)){
-  //         long_ex[16] = '0';
-  //         long_ex[17] = '7';
-  //         menuPrinter(selectMenu);
-  //       }
-  //       else{
-  //         long_ex[16] = '1';
-  //         long_ex[17] = '3';
-  //         menuPrinter(selectMenu);
-  //       }
-  //       potLastState = selection;
-  //     }
-  //     switch (potLastState){
-  //       case 0:
-  //         oledWriteChar1x('>', 0xB2, 0*6);
-  //         oledWriteChar1x(' ', 0xB3, 0*6);
-  //         selection = 0;
-  //         break;
-  //       case 1:
-  //         oledWriteChar1x('>', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB2, 0*6);
-  //         oledWriteChar1x(' ', 0xB4, 0*6);
-  //         selection = 1;
-  //         break;
-  //       case 2:
-  //         oledWriteChar1x('>', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         selection = 2;
-  //         break;
-  //       case 3:
-  //         oledWriteChar1x('>', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         selection = 3;
-  //         break;
-  //       case 4:
-  //         oledWriteChar1x('>', 0xB6, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB7, 0*6);
-  //         selection = 4;
-  //         break;
-  //       case 5:
-  //         oledWriteChar1x('>', 0xB7, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         selection = 5;
-  //         break;
-  //       case 6:
-  //         oledWriteChar1x('>', 0xB2, 0*6);
-  //         oledWriteChar1x(' ', 0xB7, 0*6);
-  //         break;
-  //       case 7:
-  //         oledWriteChar1x('>', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB2, 0*6);
-  //         break;
-  //       case 8:
-  //         oledWriteChar1x('>', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         break;
-  //       case 9:
-  //         oledWriteChar1x('>', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         break;
-  //       case 10:
-  //         oledWriteChar1x('>', 0xB6, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB7, 0*6);
-  //         break;
-  //       case 11:
-  //         oledWriteChar1x('>', 0xB7, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         break;
-  //       case 12:
-  //         oledWriteChar1x('>', 0xB2, 0*6);
-  //         oledWriteChar1x(' ', 0xB3, 0*6);
-  //         break;
-  //       case 13:
-  //         oledWriteChar1x('>', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB2, 0*6);
-  //         oledWriteChar1x(' ', 0xB4, 0*6);
-  //         break;
-  //       case 14:
-  //         oledWriteChar1x('>', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB3, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         break;
-  //       case 15:
-  //         oledWriteChar1x('>', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB4, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         break;
-  //       case 16:
-  //         oledWriteChar1x('>', 0xB6, 0*6);
-  //         oledWriteChar1x(' ', 0xB5, 0*6);
-  //         oledWriteChar1x(' ', 0xB7, 0*6);
-  //         break;
-  //       case 17:
-  //         oledWriteChar1x('>', 0xB7, 0*6);
-  //         oledWriteChar1x(' ', 0xB6, 0*6);
-  //         break;
-  //       }
-  //   }
-  //   else if (functionallity == 3){               //left right functionallity
-  //     switch (selection){
-  //       case 0:
-  //         oledWriteChar1x('^', 0xB7, 2*6);
-  //         selection = 1;
-  //         left_right_LastState = 1;
-  //         break;
-  //       case 1:
-  //         if (left_right_LastState != selection){
-  //           if (L < 600){
-  //             while (L < 700)
-  //               L = mTouchReadButton(3);
-  //             selection = 4;
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 2*6);
-  //             oledWriteChar1x('^', 0xB7, 17*6);
-  //           }
-  //           else if (R < 600){
-  //             while (R < 700)
-  //               R = mTouchReadButton(0);
-  //             // move arrow to the right selection
-  //             selection = 2;
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 2*6);
-  //             oledWriteChar1x('^', 0xB7, 7*6);
-  //           }
-  //         }
-  //         break;
-  //       case 2:
-  //         if (left_right_LastState != selection){
-  //           if (L < 600){
-  //             while (L < 700)
-  //               L = mTouchReadButton(3);              
-  //             // move arrow to the left selection
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 7*6);
-  //             oledWriteChar1x('^', 0xB7, 2*6);
-  //             selection = 1;
-  //           }
-  //           else if (R < 600){
-  //             while (R < 700)
-  //               R = mTouchReadButton(0);
-  //             // move arrow to the right selection
-  //             selection = 3;
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 7*6);
-  //             oledWriteChar1x('^', 0xB7, 12*6);
-  //           }
-  //         }
-  //         break;
-  //       case 3:
-  //         if (left_right_LastState != selection){
-  //           if (L < 600){
-  //             while (L < 700)
-  //               L = mTouchReadButton(3);              
-  //             // move arrow to the left selection
-  //             menuPrinter(selectMenu);
-  //             selection = 2;
-  //             oledWriteChar1x(' ', 0xB7, 12*6);
-  //             oledWriteChar1x('^', 0xB7, 7*6);
-  //           }
-  //           else if (R < 600){
-  //             while (R < 700)
-  //               R = mTouchReadButton(0);
-  //             // move arrow to the right selection
-  //             selection = 4;
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 12*6);
-  //             oledWriteChar1x('^', 0xB7, 17*6);
-  //           }
-  //         }
-  //         break;
-  //       case 4:
-  //         if (left_right_LastState != selection){
-  //           if (L < 600){
-  //             while (L < 700)
-  //               L = mTouchReadButton(3);              
-  //             // move arrow to the left selection
-  //             menuPrinter(selectMenu);
-  //             selection = 3;
-  //             oledWriteChar1x(' ', 0xB7, 17*6);
-  //             oledWriteChar1x('^', 0xB7, 12*6);
-  //           }
-  //           else if (R < 600){
-  //             while (R < 700)
-  //               R = mTouchReadButton(0);
-  //             selection = 1;
-  //             menuPrinter(selectMenu);
-  //             oledWriteChar1x(' ', 0xB7, 17*6);
-  //             oledWriteChar1x('^', 0xB7, 2*6);
-  //           }
-  //         }
-  //         break;
-  //     }
-  //   }
-  //   else if (functionallity == 4){               //shake execute
-  //     resultY = readAcc(0x05);
-  //     if (resultY > 500)
-  //       selectMenu = 0;
-  //     if (resultY > 100 && resultY < 500)
-  //       oledPutString(shakeHard, 6, 5*6);
-  //   }
-  //   else if (functionallity == 5){                //push the button execute
-  //     ADCON0 = 0x11;
-  //     while (!CheckButtonPressed()){
-  //       selectMenu = 0;
-  //       selection = 0;
-  //     }
-  //     ADCON0 = 0x13;
-  //   }
-  //  } 
 }//end main
 
 /** EOF main.c *************************************************/
